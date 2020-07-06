@@ -90,14 +90,19 @@ let count = (async function () {
       }
     });
 
-  console.log(
-    `Finished: Recreating directories and generating request urls for ${
-      Object.keys(books).length
-    } books`
-  );
-  console.log(
-    `Books selected for download:\n${Object.keys(books).join("\n")}\n`
-  );
+  if (Object.keys(books).length) {
+    console.log(
+      `Finished: Recreating directories and generating request urls for ${
+        Object.keys(books).length
+      } books`
+    );
+
+    console.log(
+      `Books selected for download:\n${Object.keys(books).join("\n")}\n`
+    );
+  } else {
+    console.log("Books selected are already downloaded");
+  }
 
   for (var bookClave in books) {
     const pages = books[bookClave];

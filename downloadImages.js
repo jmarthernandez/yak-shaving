@@ -133,7 +133,10 @@ let count = (async function () {
             pagesComplete++;
             return i;
           })
-          .catch((err) => console.error(err));
+          .catch((err) => {
+            console.error(requestUrl);
+            console.error(err);
+          });
       },
       { concurrency: 20 }
     )

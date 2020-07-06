@@ -95,6 +95,9 @@ let count = (async function () {
       Object.keys(books).length
     } books`
   );
+  console.log(
+    `Books selected for download:\n${Object.keys(books).join("\n")}\n`
+  );
 
   for (var bookClave in books) {
     const pages = books[bookClave];

@@ -10,7 +10,7 @@ console.time("download");
 // dir is the the url slug for the book and also what the destination
 // directory for the images will be named
 //
-// window.ag_pages and window.ap_clave on each page is where this
+// window.ag_pages and window.ag_clave on each page is where this
 // meta data is pulled from
 export const cuartoGrado = [
   { pages: 162, dir: "H2014P4ESA" },

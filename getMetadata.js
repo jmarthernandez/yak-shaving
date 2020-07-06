@@ -6,6 +6,7 @@ const { JSDOM } = jsdom;
 
 (async function () {
   ////Pulled from https://historico.conaliteg.gob.mx/ using script below
+  ////pasted into chrome console
   //
   // let hrefs = [];
   //
@@ -21,6 +22,10 @@ const { JSDOM } = jsdom;
   //
   // console.log([...new Set(hrefs)]);
 
+
+  // H2014 - 2014 edition of books
+  // P1,2,3,4,5,6 - what grade
+  // NNN - subject(ESA - español, CNA - ciencias naturales, etc)
   const bookUrls = [
     "https://historico.conaliteg.gob.mx/H2014P1CAM.htm",
     "https://historico.conaliteg.gob.mx/H2014P1ESA.htm",

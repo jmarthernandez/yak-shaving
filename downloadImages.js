@@ -1,9 +1,22 @@
 const download = require("image-downloader");
 require("https").globalAgent.options.ca = require("ssl-root-cas/latest").create();
-const { Promise } = require("bluebird");
+const { Promise, promisify } = require("bluebird");
 const mkdirp = require("mkdirp");
 const rimraf = require("rimraf");
-console.time("download");
+const chalk = require("chalk");
+const metadata = require("./metadata.json");
+const { existsSync, writeFileSync } = require("fs");
+
+const filterArgs = process.argv.slice(2);
+
+if (filterArgs[0] === "NUKE") {
+  console.log("Deleting all books");
+  metadata.forEach(({ dir }) => rimraf.sync(`./${dir}`));
+  console.log("Boom");
+  process.exit(0);
+}
+
+console.time("test");
 // pages is the number of pages that we can fetch
 // reqs will fail if you try to fetch a page that doesn't exist
 //
@@ -12,27 +25,27 @@ console.time("download");
 //
 // window.ag_pages and window.ag_clave on each page is where this
 // meta data is pulled from
-export const cuartoGrado = [
-  { pages: 162, dir: "H2014P4ESA" },
-  { pages: 161, dir: "H2014P4LEA" },
-  // {pages: 258, dir: "H2014P4DMA"},
-  { pages: 162, dir: "H2014P4CNA" },
-  { pages: 130, dir: "H2014P4AMA" },
-  { pages: 202, dir: "H2014P4GEA" },
-  { pages: 194, dir: "H2014P4HIA" },
-  { pages: 66, dir: "H2014P4CCA" },
-  { pages: 130, dir: "H2014P4FCA" },
-  { pages: 90, dir: "H2014P4EAA" },
-  { pages: 338, dir: "H2014P4DMM" },
-];
 
-cuartoGrado.forEach(({ dir }) => {
-  rimraf.sync(`./${dir}`);
-});
+function showLoadingIndicator(completed, total) {
+  let percentage = Math.floor((completed / total) * 100);
+  let loadingBar = "=".repeat(percentage / 2) + "-".repeat(50 - percentage / 2);
+  console.log(`${percentage}% [${loadingBar}]`);
+}
 
-cuartoGrado.forEach(({ dir }) => {
-  mkdirp.sync(`./${dir}`);
-});
+// Very silly query engine.  More yak shaving for fun
+// p4 will include all claves that contain p4
+// not_p4 will exclude claves that contain p4
+// ex) [p4, not_HIA, not_CNA]
+// => claves that are p4 but does not include science or history
+function predicate(args, str) {
+  const not = args.filter((a) => a.substring(0, 4) === "not_");
+  const match = args.filter((a) => a.substring(0, 4) !== "not_");
+
+  return (
+    match.every((a) => str.includes(a)) &&
+    not.every((a) => !str.includes(a.substring(4)))
+  );
+}
 
 function generateUrl(book, pageNumber) {
   if (pageNumber < 10) {
@@ -43,42 +56,88 @@ function generateUrl(book, pageNumber) {
   return `https://historico.conaliteg.gob.mx/c/${book}/${pageNumber}.jpg`;
 }
 
-let promises = [];
+let count = (async function () {
+  let books = {};
 
-cuartoGrado.forEach(({ pages, dir }) => {
-  for (let i = 0; i < pages; i++) {
-    const requestUrl = generateUrl(dir, i);
+  console.log(`Starting: Recreating directories and generating request urls`);
 
-    console.log(`Queueing: ${requestUrl}`);
+  metadata
+    .filter(({ dir }) => {
+      if (filterArgs.length === 0) {
+        return true;
+      }
+      return predicate(
+        filterArgs.map((f) => f.toLowerCase()),
+        dir.toLowerCase()
+      );
+    })
+    .forEach(({ dir, pages }) => {
+      // if book has already been downloaded don't enqueue it
+      if (existsSync(`./${dir}/done`)) {
+        console.log(`Already downloaded ${dir}`);
+        return;
+      }
+      rimraf.sync(`./${dir}`);
+      mkdirp.sync(`./${dir}`);
+      books[dir] = [];
+      for (let i = 0; i < pages; i++) {
+        const requestUrl = generateUrl(dir, i);
 
-    promises.push({
-      requestUrl,
-      dir,
+        books[dir].push({
+          requestUrl,
+          dir,
+        });
+      }
     });
+
+  console.log(
+    `Finished: Recreating directories and generating request urls for ${
+      Object.keys(books).length
+    } books`
+  );
+
+  for (var bookClave in books) {
+    const pages = books[bookClave];
+    console.log(`Starting: Processing ${bookClave}`);
+
+    let pagesComplete = 0;
+    const statusInterval = setInterval(() => {
+      showLoadingIndicator(pagesComplete, pages.length);
+      console.log(
+        chalk.bgGreen(
+          `Completed ${pagesComplete} of ${pages.length} pages in ${bookClave}`
+        )
+      );
+    }, 5000);
+    await Promise.map(
+      //fetch images for each page in the book
+      books[bookClave],
+      ({ requestUrl, dir }) => {
+        return download
+          .image(
+            (options = {
+              url: requestUrl,
+              dest: `./${dir}`,
+              rejectUnauthorized: false,
+            })
+          )
+          .then((i) => {
+            pagesComplete++;
+            return i;
+          })
+          .catch((err) => console.error(err));
+      },
+      { concurrency: 20 }
+    )
+      .then(() => {
+        clearInterval(statusInterval);
+        writeFileSync(`./${bookClave}/done`);
+        console.log(`Finished: Processing ${bookClave}`);
+      })
+      .catch((err) => {
+        clearInterval(statusInterval);
+        console.error(err);
+      });
   }
-});
-
-Promise.map(
-  promises,
-  ({ requestUrl, dir }) => {
-    console.log(`Downloading: ${requestUrl} to ./${dir}`);
-
-    return download
-      .image(
-        (options = {
-          url: requestUrl,
-          dest: `./${dir}`,
-          rejectUnauthorized: false,
-        })
-      )
-      .catch((err) => console.error(err));
-  },
-  { concurrency: 5 }
-)
-  .then(() => {
-    console.log("Completed");
-    console.timeEnd("download");
-  })
-  .catch((err) => {
-    console.error(err);
-  });
+  console.timeEnd("test");
+})();

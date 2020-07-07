@@ -56,7 +56,7 @@ function generateUrl(book, pageNumber) {
   return `https://historico.conaliteg.gob.mx/c/${book}/${pageNumber}.jpg`;
 }
 
-let count = (async function () {
+(async function () {
   let books = {};
 
   console.log(`Starting: Recreating directories and generating request urls`);
@@ -104,6 +104,7 @@ let count = (async function () {
     console.log("Books selected are already downloaded");
   }
 
+  let booksComplete = 0;
   for (var bookClave in books) {
     const pages = books[bookClave];
     console.log(`Starting: Processing ${bookClave}`);
@@ -116,7 +117,7 @@ let count = (async function () {
           `Completed ${pagesComplete} of ${pages.length} pages in ${bookClave}`
         )
       );
-    }, 5000);
+    }, 10000);
     await Promise.map(
       //fetch images for each page in the book
       books[bookClave],
@@ -144,6 +145,12 @@ let count = (async function () {
         clearInterval(statusInterval);
         writeFileSync(`./${bookClave}/done`);
         console.log(`Finished: Processing ${bookClave}`);
+        booksComplete++;
+        console.log(
+          `Finished: Processing book ${booksComplete} of ${
+            Object.keys(books).length
+          }`
+        );
       })
       .catch((err) => {
         clearInterval(statusInterval);
